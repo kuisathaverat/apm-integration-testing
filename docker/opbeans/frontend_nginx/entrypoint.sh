@@ -5,7 +5,7 @@ echo "* You can define ELASTIC_APM_SERVER_URLS to send the APM request (default 
 echo "******************************************************************************************************************************************"
 
 ELASTIC_OPBEANS_API_SERVER=${ELASTIC_OPBEANS_API_SERVER:-"http://localhost:3000"}
-ELASTIC_APM_SERVER_URLS=${APM_SERVE:-"http://localhost:8200"}
+ELASTIC_APM_SERVER_URLS=${ELASTIC_APM_SERVER_URLS:-"http://localhost:8200"}
 
 echo "ELASTIC_OPBEANS_API_SERVER=${ELASTIC_OPBEANS_API_SERVER}"
 echo "ELASTIC_APM_SERVER_URLS=${ELASTIC_APM_SERVER_URLS}"
