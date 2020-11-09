@@ -8,6 +8,7 @@ import os
 
 from .helpers import curl_healthcheck, try_to_set_slowlog
 from .service import StackService, Service
+from distutils.dir_util import copy_tree
 
 
 class ApmServer(StackService, Service):
@@ -815,6 +816,13 @@ class Kibana(StackService, Service):
                 elif self.at_least_version("7.9"):
                     self.environment["XPACK_INGESTMANAGER_FLEET_TLSCHECKDISABLED"] = "true"
 
+        source = self.options.get("kibana_from_sources")
+        if source:
+            kibana_src = "{}/../../docker/kibana_src/kibana".format(os.path.abspath(self.__file__))
+            os.rmdir(kibana_src)
+            copy_tree(source, kibana_src)
+            self.node_version = open("{}/.node-version".format(source), 'r').read()
+
     @classmethod
     def add_arguments(cls, parser):
         parser.add_argument(
@@ -844,6 +852,12 @@ class Kibana(StackService, Service):
             help="disable the APM service maps UI",
         )
 
+        parser.add_argument(
+            "--kibana-from-sources",
+            nargs="?",
+            help="Use Kibana source folder to build the container.",
+        )
+
     def _content(self):
         volumes = []
         if self.kibana_tls:
@@ -868,8 +882,21 @@ class Kibana(StackService, Service):
         if volumes:
             content["volumes"] = volumes
 
+        if self.options.get("kibana_from_sources"):
+            content["build"] = {
+                "context": "docker/kibana_src",
+                "dockerfile": "Dockerfile",
+                "args": {
+                    "NODE_VERSION": self.node_version,
+                }
+            }
+            content["image"] = None
         return content
 
     @staticmethod
     def enabled():
         return True
+
+class KibanaFromSources(Kibana):
+    def __init__(self, **options):
+        super(KibanaFromSources, self).__init__(**options)
