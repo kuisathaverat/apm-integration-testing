@@ -9,7 +9,7 @@ import os
 from .helpers import curl_healthcheck, try_to_set_slowlog
 from .service import StackService, Service
 from distutils.dir_util import copy_tree
-
+from shutil import rmtree
 
 class ApmServer(StackService, Service):
     docker_path = "apm"
@@ -818,10 +818,11 @@ class Kibana(StackService, Service):
 
         source = self.options.get("kibana_from_sources")
         if source:
-            kibana_src = "{}/../../docker/kibana_src/kibana".format(os.path.abspath(self.__file__))
-            os.rmdir(kibana_src)
-            copy_tree(source, kibana_src)
-            self.node_version = open("{}/.node-version".format(source), 'r').read()
+            kibana_src = "{}/../../docker/kibana_src/kibana".format(os.path.dirname(__file__))
+            if os.path.isdir(kibana_src):
+                rmtree(kibana_src)
+            copy_tree(source, kibana_src, preserve_symlinks=0)
+            self.node_version = open("{}/.node-version".format(source), 'r').read().rstrip("\n")
 
     @classmethod
     def add_arguments(cls, parser):

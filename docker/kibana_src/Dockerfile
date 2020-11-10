@@ -5,11 +5,12 @@ RUN mkdir -p /usr/share/kibana/config
 WORKDIR /usr/share/kibana
 RUN groupadd --gid 1001 kibana \
   && useradd --uid 1001 --gid 1001 --groups 0 --home-dir /usr/share/kibana --no-create-home kibana
-RUN chown -R kibana:0 /usr/share/kibana
-USER kibana
 
 COPY kibana /usr/share/kibana
 COPY kibana.yml /usr/share/kibana/config/kibana.yml
+
+RUN chown -R kibana:0 /usr/share/kibana
+USER kibana
 
 RUN git config --global user.email "none@example.com"
 RUN git config --global user.name "None"
