@@ -11,8 +11,9 @@ function runTests() {
     trap "stopEnv" EXIT
     targets="destroy-env"
   fi
-  targets="${targets} $@"
+  targets="${targets} $*"
   export VENV=${VENV:-${TMPDIR:-/tmp/}venv-$$}
+# shellcheck disable=SC2086
   make ${targets}
 }
 
@@ -23,11 +24,11 @@ if [ -n "${APM_SERVER_BRANCH}" ]; then
  if [ "${APM_SERVER_BRANCH_TYPE}" != "--release" ]; then
   BUILD_OPTS="${BUILD_OPTS} --apm-server-build https://github.com/elastic/apm-server.git@${APM_SERVER_BRANCH_VERSION}"
  else
-   ELASTIC_STACK_VERSION="${APM_SERVER_BRANCH_VERSION} --release"
+   ELASTIC_STACK_VERSION="${APM_SERVER_BRANCH_VERSION} --release --apm-server-managed --with-elastic-agent"
  fi
 fi
 
-if [ -z "${DISABLE_BUILD_PARALLEL}" -o "${DISABLE_BUILD_PARALLEL}" = "false" ]; then
+if [ -z "${DISABLE_BUILD_PARALLEL}" ] || [ "${DISABLE_BUILD_PARALLEL}" = "false" ]; then
  BUILD_OPTS="${BUILD_OPTS} --build-parallel"
 fi
 
@@ -36,7 +37,9 @@ ELASTIC_STACK_VERSION=${ELASTIC_STACK_VERSION:-'7.0.0'}
 # assume we're under CI if BUILD_NUMBER is set
 if [ -n "${BUILD_NUMBER}" ]; then
   # kill any running containers under CI
-  [ -n "$(docker ps -aq)" ] && docker ps -aq | xargs -t docker rm -f || true
+  if [ -n "$(docker ps -aq)" ]; then
+    docker ps -aq | xargs -t docker rm -f || true
+  fi
 fi
 
 echo "ELASTIC_STACK_VERSION=${ELASTIC_STACK_VERSION}"
