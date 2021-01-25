@@ -14,6 +14,7 @@ from .beats import BeatMixin
 from .helpers import load_images
 from .opbeans import OpbeansService, OpbeansRum
 from .service import Service, DEFAULT_APM_SERVER_URL
+from .proxy import Toxi, Dyno
 
 # these imports are used by discover_services function to discover services from modules loaded
 
@@ -22,10 +23,10 @@ from .beats import (  # noqa: F401
     Packetbeat, Metricbeat, Heartbeat, Filebeat
 )
 from .elastic_stack import (  # noqa: F401
-    ApmServer, Elasticsearch, Kibana
+    ApmServer, ElasticAgent, Elasticsearch, EnterpriseSearch, Kibana, PackageRegistry
 )
 from .aux_services import (  # noqa: F401
-    Kafka, Logstash, Postgres, Redis, Zookeeper
+    Kafka, Logstash, Postgres, Redis, StatsD, Zookeeper, WaitService
 )
 from .opbeans import (  # noqa: F401
     OpbeansNode, OpbeansRuby, OpbeansPython, OpbeansDotnet,
@@ -70,14 +71,15 @@ class LocalSetup(object):
         '7.1': '7.1.1',
         '7.2': '7.2.1',
         '7.3': '7.3.2',
-        '7.4': '7.4.3',
+        '7.4': '7.4.2',
         '7.5': '7.5.2',
         '7.6': '7.6.2',
         '7.7': '7.7.1',
         '7.8': '7.8.1',
         '7.9': '7.9.3',
-        '7.10': '7.10.0',
+        '7.10': '7.10.1',
         '7.11': '7.11.0',
+        '7.12': '7.12.0',
         'master': '8.0.0',
     }
 
@@ -127,6 +129,12 @@ class LocalSetup(object):
             services,
             argv=argv,
         ).set_defaults(func=self.start_handler)
+
+        subparsers.add_parser(
+            'reset-enterprise-search-password',
+            help="Resets enterprise search password.",
+            description="Resets enterprise search password."
+        ).set_defaults(func=self.reset_enterprise_search_password_handler)
 
         subparsers.add_parser(
             'status',
@@ -424,6 +432,13 @@ class LocalSetup(object):
             default="json"
         )
 
+        parser.add_argument(
+            '--dyno',
+            action='store_true',
+            help='All various services to be dynamically tuned to introduce latency or other pressure',
+            default=False
+        )
+
         self.store_options(parser)
 
         return parser
@@ -570,6 +585,20 @@ class LocalSetup(object):
                     (run_all and is_obs and not is_opbeans_2nd)):
                 selections.add(service(**args))
 
+        selections.add(WaitService(selections, **args))
+        if args.get('dyno'):
+            toxi = Toxi()
+            selections.add(toxi)
+            toxi.gen_ports(selections)
+            c = toxi.gen_config(selections)
+            this_dir = os.path.dirname(os.path.realpath(__file__))
+            toxi_cfg_path = os.path.join(this_dir, "../../docker/toxi/toxi.cfg")
+            with open(toxi_cfg_path, 'w') as fh_:
+                fh_.write(c)
+            dyno = Dyno()
+            selections.add(dyno)
+            stasd = StatsD()
+            selections.add(stasd)
         # `docker load` images if necessary, usually only for build candidates
         services_to_load = {}
         for service in selections:
@@ -606,7 +635,7 @@ class LocalSetup(object):
                 del services["opbeans-load-generator"]
 
         compose = dict(
-            version="2.1",
+            version="2.4",
             services=services,
             networks=dict(
                 default={"name": "apm-integration-testing"},
@@ -668,6 +697,11 @@ class LocalSetup(object):
             if not sys.stdin.isatty():
                 up_params.extend(["--quiet-pull"])
             self.run_docker_compose_process(docker_compose_cmd + up_params)
+
+    @staticmethod
+    def reset_enterprise_search_password_handler():
+        subprocess.call(["docker-compose", "exec", "enterprise-search", "/usr/local/bin/docker-entrypoint.sh",
+                         "--reset-auth"])
 
     @staticmethod
     def status_handler():

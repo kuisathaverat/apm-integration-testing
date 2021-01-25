@@ -12,6 +12,7 @@
 venv*/
 .coverage
 docker-compose.yml
+docker/toxi/toxi.cfg
 htmlcov/
 tests/results/
 docker/kibana_src/kibana
@@ -23,6 +24,7 @@ node_modules
 **/bin
 docker-info/
 .vscode/
+*.swp
 
 # For the BATS testing
 bats-core/
@@ -31,3 +33,6 @@ target/
 
 # For the docs generation
 .apm-its
+
+# For the cache java dependencies
+docker/java/spring/.m2

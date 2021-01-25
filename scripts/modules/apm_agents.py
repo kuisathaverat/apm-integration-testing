@@ -38,7 +38,7 @@ class AgentRUMJS(Service):
             "ELASTIC_APM_SERVICE_NAME": "rum",
             "ELASTIC_APM_SERVER_URL": self.options.get("apm_server_url", DEFAULT_APM_SERVER_URL),
             "ELASTIC_APM_VERIFY_SERVER_CERT": str(not self.options.get("no_verify_server_cert")).lower(),
-            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL)
+            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level") or DEFAULT_APM_LOG_LEVEL
         }
         environment = default_environment
         if self.apm_api_key:
@@ -99,7 +99,7 @@ class AgentGoNetHttp(Service):
     ])
     def _content(self):
         default_environment = {
-            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL),
+            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level") or DEFAULT_APM_LOG_LEVEL,
             "ELASTIC_APM_API_REQUEST_TIME": "3s",
             "ELASTIC_APM_FLUSH_INTERVAL": "500ms",
             "ELASTIC_APM_SERVICE_NAME": "gonethttpapp",
@@ -161,7 +161,7 @@ class AgentNodejsExpress(Service):
             "EXPRESS_PORT": str(self.SERVICE_PORT),
             "EXPRESS_SERVICE_NAME": "expressapp",
             "ELASTIC_APM_VERIFY_SERVER_CERT": str(not self.options.get("no_verify_server_cert")).lower(),
-            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL),
+            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level") or DEFAULT_APM_LOG_LEVEL,
         }
         environment = default_environment
         if self.apm_api_key:
@@ -169,8 +169,7 @@ class AgentNodejsExpress(Service):
 
         return dict(
             build={"context": "docker/nodejs/express", "dockerfile": "Dockerfile"},
-            command="bash -c \"npm install {} && node app.js\"".format(
-                self.agent_package, self.SERVICE_PORT),
+            command="bash -c \"npm install {} && node app.js\"".format(self.agent_package),
             container_name="expressapp",
             healthcheck=curl_healthcheck(self.SERVICE_PORT, "expressapp"),
             depends_on=self.depends_on,
@@ -352,6 +351,7 @@ class AgentRubyRails(Service):
     DEFAULT_AGENT_REPO = "elastic/apm-agent-ruby"
     DEFAULT_AGENT_VERSION = "latest"
     DEFAULT_AGENT_VERSION_STATE = "release"
+    DEFAULT_RUBY_VERSION = "latest"
     SERVICE_PORT = 8020
 
     @classmethod
@@ -372,12 +372,18 @@ class AgentRubyRails(Service):
             default=cls.DEFAULT_AGENT_REPO,
             help="GitHub repo to be used. Default: {}".format(cls.DEFAULT_AGENT_REPO),
         )
+        parser.add_argument(
+            "--ruby-version",
+            default=cls.DEFAULT_RUBY_VERSION,
+            help='Use Ruby version (latest, 2, 3, ...)',
+        )
 
     def __init__(self, **options):
         super(AgentRubyRails, self).__init__(**options)
         self.agent_version = options.get("ruby_agent_version", self.DEFAULT_AGENT_VERSION)
         self.agent_version_state = options.get("ruby_agent_version_state", self.DEFAULT_AGENT_VERSION_STATE)
         self.agent_repo = options.get("ruby_agent_repo", self.DEFAULT_AGENT_REPO)
+        self.ruby_version = options.get("ruby_version", self.DEFAULT_RUBY_VERSION)
         if options.get("enable_apm_server", True):
             self.depends_on = {
                 "apm-server": {"condition": "service_healthy"},
@@ -411,7 +417,9 @@ class AgentRubyRails(Service):
         default_environment = {
             "APM_SERVER_URL": self.options.get("apm_server_url", DEFAULT_APM_SERVER_URL),
             "ELASTIC_APM_LOG_LEVEL": self._map_log_level(
-                self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL).lower()
+                self.options.get("apm_log_level").lower()
+                if self.options.get("apm_log_level")
+                else DEFAULT_APM_LOG_LEVEL
             ),
             "ELASTIC_APM_API_REQUEST_TIME": "3s",
             "ELASTIC_APM_SERVER_URL": self.options.get("apm_server_url", DEFAULT_APM_SERVER_URL),
@@ -434,6 +442,7 @@ class AgentRubyRails(Service):
                 "args": {
                     "RUBY_AGENT_VERSION": self.agent_version,
                     "RUBY_AGENT_REPO": self.agent_repo,
+                    "RUBY_VERSION": self.ruby_version,
                 }
             },
             command="bash -c \"bundle install && RAILS_ENV=production bundle exec rails s -b 0.0.0.0 -p {}\"".format(
@@ -473,12 +482,20 @@ class AgentJavaSpring(Service):
             default=cls.DEFAULT_AGENT_REPO,
             help="GitHub repo to be used. Default: {}".format(cls.DEFAULT_AGENT_REPO),
         )
+        parser.add_argument(
+            '--java-m2-cache',
+            action='store_true',
+            dest='java_m2_cache',
+            help='Use the local m2 cache (for speeding up the builds)',
+            default=False
+        )
 
     def __init__(self, **options):
         super(AgentJavaSpring, self).__init__(**options)
         self.agent_version = options.get("java_agent_version", self.DEFAULT_AGENT_VERSION)
         self.agent_release = options.get("java_agent_release", self.DEFAULT_AGENT_RELEASE)
         self.agent_repo = options.get("java_agent_repo", self.DEFAULT_AGENT_REPO)
+        self.java_m2_cache = str(options.get("java_m2_cache", False)).lower()
         if options.get("enable_apm_server", True):
             self.depends_on = {
                 "apm-server": {"condition": "service_healthy"},
@@ -493,21 +510,24 @@ class AgentJavaSpring(Service):
             "ELASTIC_APM_API_REQUEST_TIME": "3s",
             "ELASTIC_APM_SERVICE_NAME": "springapp",
             "ELASTIC_APM_VERIFY_SERVER_CERT": str(not self.options.get("no_verify_server_cert")).lower(),
-            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL),
+            "ELASTIC_APM_LOG_LEVEL": self.options.get("apm_log_level") or DEFAULT_APM_LOG_LEVEL,
         }
         environment = default_environment
         if self.apm_api_key:
             environment.update(self.apm_api_key)
 
+        default_args = {
+            "JAVA_AGENT_BRANCH": self.agent_version,
+            "JAVA_AGENT_BUILT_VERSION": self.agent_release,
+            "JAVA_AGENT_REPO": self.agent_repo,
+            "JAVA_M2_CACHE": self.java_m2_cache
+        }
+
         return dict(
             build={
                 "context": "docker/java/spring",
                 "dockerfile": "Dockerfile",
-                "args": {
-                    "JAVA_AGENT_BRANCH": self.agent_version,
-                    "JAVA_AGENT_BUILT_VERSION": self.agent_release,
-                    "JAVA_AGENT_REPO": self.agent_repo,
-                }
+                "args": default_args
             },
             container_name="javaspring",
             image=None,
@@ -584,7 +604,9 @@ class AgentDotnet(Service):
             "ELASTIC_APM_SERVICE_NAME": "dotnetapp",
             "ELASTIC_APM_TRANSACTION_IGNORE_NAMES": "healthcheck",
             "ELASTIC_APM_LOG_LEVEL": self._map_log_level(
-                self.options.get("apm_log_level", DEFAULT_APM_LOG_LEVEL).lower()
+                self.options.get("apm_log_level").lower()
+                if self.options.get("apm_log_level")
+                else DEFAULT_APM_LOG_LEVEL
             ),
         }
         environment = default_environment

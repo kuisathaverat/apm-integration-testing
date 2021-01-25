@@ -118,3 +118,42 @@ class Zookeeper(Service):
             logging=None,
             ports=[self.publish_port(self.port, self.SERVICE_PORT)],
         )
+
+
+class StatsD(Service):
+    SERVICE_PORT = 8125
+
+    def _content(self):
+        return dict(
+            build=dict(
+                context="docker/statsd",
+                dockerfile="Dockerfile",
+                args=[]
+            ),
+            healthcheck={"interval": "10s", "test": ["CMD", "pidof", "node"]},
+            image=None,
+            labels=None,
+            ports=["8125:8125/udp", "8126:8126", "8127:8127"],
+        )
+
+
+class WaitService(Service):
+    """Create a service that depends on all services ."""
+
+    def __init__(self, services, **options):
+        super(WaitService, self).__init__(**options)
+        self.services = services
+
+    def _content(self):
+        # Sorting is not relavant to docker-compose but is included here
+        # to allow the tests to check for a consistently-ordered list
+        for s in sorted(self.services, key=lambda x: x.name()):
+            if s.name() != self.name() and s.name() != "opbeans-load-generator":
+                self.depends_on[s.name()] = {"condition": "service_healthy"}
+        return dict(
+            container_name="wait",
+            image="busybox",
+            depends_on=self.depends_on,
+            labels=None,
+            logging=None,
+        )

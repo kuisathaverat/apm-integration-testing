@@ -48,7 +48,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_dotnet(self):
         opbeans_go = OpbeansDotnet(version="6.3.10").render()
         self.assertEqual(
-            opbeans_go, yaml.load("""
+            opbeans_go, yaml.safe_load("""
                 opbeans-dotnet:
                     build:
                       dockerfile: Dockerfile
@@ -80,10 +80,12 @@ class OpbeansServiceTest(ServiceTest):
                           max-size: '2m'
                           max-file: '5'
                     depends_on:
-                      elasticsearch:
-                        condition: service_healthy
                       apm-server:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
+                      elasticsearch:
+                        condition:
+                          service_healthy
                     healthcheck:
                         test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "-k", "--fail", "--silent", "--output", "/dev/null", "http://opbeans-dotnet:3000/"]
                         interval: 10s
@@ -108,7 +110,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_go(self):
         opbeans_go = OpbeansGo(version="6.3.10").render()
         self.assertEqual(
-            opbeans_go, yaml.load("""
+            opbeans_go, yaml.safe_load("""
                 opbeans-go:
                     build:
                       dockerfile: Dockerfile
@@ -146,14 +148,19 @@ class OpbeansServiceTest(ServiceTest):
                           max-size: '2m'
                           max-file: '5'
                     depends_on:
-                      elasticsearch:
-                        condition: service_healthy
                       postgres:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
                       redis:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
                       apm-server:
-                        condition: service_healthy""")  # noqa: 501
+                        condition:
+                          service_healthy
+                      elasticsearch:
+                        condition:
+                          service_healthy
+ """)  # noqa: 501
         )
 
     def test_opbeans_go_branch(self):
@@ -169,7 +176,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_java(self):
         opbeans_java = OpbeansJava(version="6.3.10").render()
         self.assertEqual(
-            opbeans_java, yaml.load("""
+            opbeans_java, yaml.safe_load("""
                 opbeans-java:
                     build:
                       dockerfile: Dockerfile
@@ -207,12 +214,15 @@ class OpbeansServiceTest(ServiceTest):
                           max-size: '2m'
                           max-file: '5'
                     depends_on:
-                      elasticsearch:
-                        condition: service_healthy
                       postgres:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
                       apm-server:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
+                      elasticsearch:
+                        condition:
+                          service_healthy
                     healthcheck:
                       test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "-k", "--fail", "--silent", "--output", "/dev/null", "http://opbeans-java:3000/"]
                       interval: 10s
@@ -237,7 +247,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_node(self):
         opbeans_node = OpbeansNode(version="6.2.4").render()
         self.assertEqual(
-            opbeans_node, yaml.load("""
+            opbeans_node, yaml.safe_load("""
                 opbeans-node:
                     build:
                       dockerfile: Dockerfile
@@ -278,14 +288,17 @@ class OpbeansServiceTest(ServiceTest):
                         - OPBEANS_DT_PROBABILITY=0.50
                         - ELASTIC_APM_ENVIRONMENT=production
                     depends_on:
-                        redis:
-                            condition: service_healthy
                         postgres:
-                            condition: service_healthy
+                          condition:
+                            service_healthy
+                        redis:
+                          condition:
+                            service_healthy
                         apm-server:
-                            condition: service_healthy
+                          condition:
+                            service_healthy
                     healthcheck:
-                        test: ["CMD", "wget", "-q", "--server-response", "-O", "/dev/null", "http://opbeans-node:3000/"]
+                        test: ["CMD", "wget", "-T", "3", "-q", "--server-response", "-O", "/dev/null", "http://opbeans-node:3000/"]
                         interval: 10s
                         retries: 12
                     volumes:
@@ -310,7 +323,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_python(self):
         opbeans_python = OpbeansPython(version="6.2.4").render()
         self.assertEqual(
-            opbeans_python, yaml.load("""
+            opbeans_python, yaml.safe_load("""
                 opbeans-python:
                     build:
                       dockerfile: Dockerfile
@@ -349,14 +362,18 @@ class OpbeansServiceTest(ServiceTest):
                         - OPBEANS_DT_PROBABILITY=0.50
                         - ELASTIC_APM_ENVIRONMENT=production
                     depends_on:
-                        apm-server:
-                            condition: service_healthy
-                        elasticsearch:
-                            condition: service_healthy
                         postgres:
-                            condition: service_healthy
+                          condition:
+                            service_healthy
                         redis:
-                            condition: service_healthy
+                          condition:
+                            service_healthy
+                        apm-server:
+                          condition:
+                            service_healthy
+                        elasticsearch:
+                          condition:
+                            service_healthy
                     healthcheck:
                         test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "-k", "--fail", "--silent", "--output", "/dev/null", "http://opbeans-python:3000/"]
                         interval: 10s
@@ -403,7 +420,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_ruby(self):
         opbeans_ruby = OpbeansRuby(version="6.3.10").render()
         self.assertEqual(
-            opbeans_ruby, yaml.load("""
+            opbeans_ruby, yaml.safe_load("""
                 opbeans-ruby:
                     build:
                       dockerfile: Dockerfile
@@ -437,16 +454,20 @@ class OpbeansServiceTest(ServiceTest):
                           max-size: '2m'
                           max-file: '5'
                     depends_on:
-                      redis:
-                        condition: service_healthy
-                      elasticsearch:
-                        condition: service_healthy
                       postgres:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
+                      redis:
+                        condition:
+                          service_healthy
                       apm-server:
-                        condition: service_healthy
+                        condition:
+                          service_healthy
+                      elasticsearch:
+                        condition:
+                          service_healthy
                     healthcheck:
-                      test: ["CMD", "wget", "-q", "--server-response", "-O", "/dev/null", "http://opbeans-ruby:3000/"]
+                      test: ["CMD", "wget", "-T", "3", "-q", "--server-response", "-O", "/dev/null", "http://opbeans-ruby:3000/"]
                       interval: 10s
                       retries: 50""")  # noqa: 501
         )
@@ -464,7 +485,7 @@ class OpbeansServiceTest(ServiceTest):
     def test_opbeans_rum(self):
         opbeans_rum = OpbeansRum(version="6.3.10").render()
         self.assertEqual(
-            opbeans_rum, yaml.load("""
+            opbeans_rum, yaml.safe_load("""
                 opbeans-rum:
                      build:
                          dockerfile: Dockerfile
@@ -483,8 +504,9 @@ class OpbeansServiceTest(ServiceTest):
                               max-size: '2m'
                               max-file: '5'
                      depends_on:
-                         opbeans-node:
-                             condition: service_healthy
+                        opbeans-node:
+                          condition:
+                            service_healthy
                      healthcheck:
                          test: ["CMD", "curl", "--write-out", "'HTTP %{http_code}'", "-k", "--fail", "--silent", "--output", "/dev/null", "http://localhost:9222/"]
                          interval: 10s
@@ -586,26 +608,33 @@ class OpbeansServiceTest(ServiceTest):
             opbeans_python_loadgen_rpm=50,
             opbeans_ruby_loadgen_rpm=10,
         ).render()
-        assert opbeans_load_gen == yaml.load("""
+        assert opbeans_load_gen == yaml.safe_load("""
             opbeans-load-generator:
                 image: opbeans/opbeans-loadgen:latest
                 container_name: localtesting_6.3.1_opbeans-load-generator
                 depends_on:
-                    opbeans-python: {condition: service_healthy}
-                    opbeans-ruby: {condition: service_healthy}
+                    opbeans-python:
+                      condition:
+                        service_healthy
+                    opbeans-ruby:
+                      condition:
+                        service_healthy
                 environment:
+                 - 'WS=1'
                  - 'OPBEANS_URLS=opbeans-python:http://opbeans-python:3000,opbeans-ruby:http://opbeans-ruby:3000'
                  - 'OPBEANS_RPMS=opbeans-python:50,opbeans-ruby:10'
                 logging:
                     driver: json-file
-                    options: {max-file: '5', max-size: 2m}""")
+                    options: {max-file: '5', max-size: 2m}
+                ports:
+                - '8999:8000'""")
 
 
 class PostgresServiceTest(ServiceTest):
     def test_postgres(self):
         postgres = Postgres(version="6.2.4").render()
         self.assertEqual(
-            postgres, yaml.load("""
+            postgres, yaml.safe_load("""
                 postgres:
                     image: postgres:10
                     container_name: localtesting_6.2.4_postgres
@@ -632,7 +661,7 @@ class RedisServiceTest(ServiceTest):
     def test_redis(self):
         redis = Redis(version="6.2.4").render()
         self.assertEqual(
-            redis, yaml.load("""
+            redis, yaml.safe_load("""
                 redis:
                     image: redis:4
                     container_name: localtesting_6.2.4_redis
@@ -670,9 +699,9 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
-        want = yaml.load("""
-        version: '2.1'
+        got = yaml.safe_load(docker_compose_yml)
+        want = yaml.safe_load("""
+        version: '2.4'
         services:
             apm-server:
                 cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
@@ -686,8 +715,12 @@ class LocalTest(unittest.TestCase):
                     -E, 'output.elasticsearch.hosts=["http://elasticsearch:9200"]', -E, output.elasticsearch.enabled=true]
                 container_name: localtesting_6.2.10_apm-server
                 depends_on:
-                    elasticsearch: {condition: service_healthy}
-                    kibana: {condition: service_healthy}
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
                 environment: [
                     BEAT_STRICT_PERMS=false
                 ]
@@ -723,7 +756,7 @@ class LocalTest(unittest.TestCase):
                 container_name: localtesting_6.2.10_kibana
                 depends_on:
                     elasticsearch: {condition: service_healthy}
-                environment: {ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200', SERVER_NAME: kibana.example.org, XPACK_MONITORING_ENABLED: 'true'}
+                environment: {ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200', SERVER_HOST: 0.0.0.0, SERVER_NAME: kibana.example.org, XPACK_MONITORING_ENABLED: 'true'}
                 healthcheck:
                     interval: 10s
                     retries: 20
@@ -734,6 +767,19 @@ class LocalTest(unittest.TestCase):
                     driver: json-file
                     options: {max-file: '5', max-size: 2m}
                 ports: ['127.0.0.1:5601:5601']
+            wait-service:
+                container_name: wait
+                depends_on:
+                    apm-server:
+                        condition:
+                            service_healthy
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
+                image: busybox
         networks:
             default: {name: apm-integration-testing}
         volumes:
@@ -751,9 +797,9 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
-        want = yaml.load("""
-        version: '2.1'
+        got = yaml.safe_load(docker_compose_yml)
+        want = yaml.safe_load("""
+        version: '2.4'
         services:
             apm-server:
                 cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
@@ -767,8 +813,12 @@ class LocalTest(unittest.TestCase):
                     -E, 'output.elasticsearch.hosts=["http://elasticsearch:9200"]', -E, output.elasticsearch.enabled=true ]
                 container_name: localtesting_6.3.10_apm-server
                 depends_on:
-                    elasticsearch: {condition: service_healthy}
-                    kibana: {condition: service_healthy}
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
                 environment: [
                     BEAT_STRICT_PERMS=false
                 ]
@@ -808,7 +858,7 @@ class LocalTest(unittest.TestCase):
                 container_name: localtesting_6.3.10_kibana
                 depends_on:
                     elasticsearch: {condition: service_healthy}
-                environment: {ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200', SERVER_NAME: kibana.example.org, XPACK_MONITORING_ENABLED: 'true', XPACK_XPACK_MAIN_TELEMETRY_ENABLED: 'false'}
+                environment: {ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200', SERVER_HOST: 0.0.0.0, SERVER_NAME: kibana.example.org, XPACK_MONITORING_ENABLED: 'true', XPACK_XPACK_MAIN_TELEMETRY_ENABLED: 'false'}
                 healthcheck:
                     interval: 10s
                     retries: 20
@@ -819,7 +869,19 @@ class LocalTest(unittest.TestCase):
                     driver: json-file
                     options: {max-file: '5', max-size: 2m}
                 ports: ['127.0.0.1:5601:5601']
-
+            wait-service:
+                container_name: wait
+                depends_on:
+                    apm-server:
+                        condition:
+                            service_healthy
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
+                image: busybox
         networks:
             default: {name: apm-integration-testing}
         volumes:
@@ -836,7 +898,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         self.assertIn('ELASTIC_APM_SERVICE_VERSION=1.2.3', got['services']['opbeans-java']['environment'])
 
     def test_start_master_default(self):
@@ -847,9 +909,9 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
-        want = yaml.load("""
-        version: '2.1'
+        got = yaml.safe_load(docker_compose_yml)
+        want = yaml.safe_load("""
+        version: '2.4'
         services:
             apm-server:
                 cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
@@ -871,8 +933,12 @@ class LocalTest(unittest.TestCase):
                     ]
                 container_name: localtesting_8.0.0_apm-server
                 depends_on:
-                    elasticsearch: {condition: service_healthy}
-                    kibana: {condition: service_healthy}
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
                 environment: [
                     BEAT_STRICT_PERMS=false
                 ]
@@ -933,11 +999,14 @@ class LocalTest(unittest.TestCase):
             kibana:
                 container_name: localtesting_8.0.0_kibana
                 depends_on:
-                    elasticsearch: {condition: service_healthy}
+                    elasticsearch:
+                        condition:
+                            service_healthy
                 environment: {
                     ELASTICSEARCH_PASSWORD: changeme,
                     ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200',
                     ELASTICSEARCH_USERNAME: kibana_system_user,
+                    SERVER_HOST: 0.0.0.0,
                     SERVER_NAME: kibana.example.org,
                     STATUS_ALLOWANONYMOUS: 'true',
                     TELEMETRY_ENABLED: 'false',
@@ -945,6 +1014,8 @@ class LocalTest(unittest.TestCase):
                     XPACK_MONITORING_ENABLED: 'true',
                     XPACK_SECURITY_ENCRYPTIONKEY: 'fhjskloppd678ehkdfdlliverpoolfcr',
                     XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: 'fhjskloppd678ehkdfdlliverpoolfcr',
+                    XPACK_FLEET_AGENTS_ELASTICSEARCH_HOST: 'http://elasticsearch:9200',
+                    XPACK_FLEET_AGENTS_KIBANA_HOST: 'http://kibana:5601',
                     XPACK_FLEET_AGENTS_TLSCHECKDISABLED: 'true',
                     XPACK_XPACK_MAIN_TELEMETRY_ENABLED: 'false',
                     XPACK_SECURITY_LOGINASSISTANCEMESSAGE: 'Login&#32;details:&#32;`admin/changeme`.&#32;Further&#32;details&#32;[here](https://github.com/elastic/apm-integration-testing#logging-in).'
@@ -959,6 +1030,19 @@ class LocalTest(unittest.TestCase):
                     driver: json-file
                     options: {max-file: '5', max-size: 2m}
                 ports: ['127.0.0.1:5601:5601']
+            wait-service:
+                container_name: wait
+                depends_on:
+                    apm-server:
+                        condition:
+                            service_healthy
+                    elasticsearch:
+                        condition:
+                            service_healthy
+                    kibana:
+                        condition:
+                            service_healthy
+                image: busybox
         networks:
             default: {name: apm-integration-testing}
         volumes:
@@ -966,6 +1050,33 @@ class LocalTest(unittest.TestCase):
             pgdata: {driver: local}
         """)  # noqa: 501
         self.assertDictEqual(got, want)
+
+    def test_start_master_with_oss(self):
+        docker_compose_yml = stringIO()
+        image_cache_dir = "/foo"
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            with self.assertRaises(SystemExit) as cm:
+                setup = LocalSetup(argv=self.common_setup_args + ["master", "--image-cache-dir", image_cache_dir, "--oss"])
+                setup.set_docker_compose_path(docker_compose_yml)
+                setup()
+            self.assertEqual(cm.exception.code, 1)
+
+    def test_start_master_with_apm_oss(self):
+        docker_compose_yml = stringIO()
+        version = "8.0.0"
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': version}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--apm-server-oss"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        got = yaml.safe_load(docker_compose_yml)
+        services = got["services"]
+        self.assertEqual(
+            "docker.elastic.co/elasticsearch/elasticsearch:{}-SNAPSHOT".format(version),
+            services["elasticsearch"]["image"]
+        )
+        self.assertEqual("docker.elastic.co/kibana/kibana:{}-SNAPSHOT".format(version), services["kibana"]["image"])
+        self.assertEqual("docker.elastic.co/apm/apm-server-oss:{}-SNAPSHOT".format(version), services["apm-server"]["image"])
 
     @mock.patch(cli.__name__ + ".load_images")
     def test_start_6_x_xpack_secure(self, _ignore_load_images):
@@ -975,7 +1086,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         # apm-server should use user/pass -> es
         apm_server_cmd = got["services"]["apm-server"]["command"]
         self.assertTrue(any(cmd.startswith("output.elasticsearch.password=") for cmd in apm_server_cmd), apm_server_cmd)
@@ -1006,7 +1117,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         # apm-server should use user/pass -> es
         apm_server_cmd = got["services"]["apm-server"]["command"]
         self.assertTrue(any(cmd.startswith("output.elasticsearch.password=") for cmd in apm_server_cmd), apm_server_cmd)
@@ -1036,7 +1147,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertNotIn("elasticsearch", services)
         self.assertNotIn("elasticsearch", services["apm-server"]["depends_on"])
@@ -1049,7 +1160,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = set(got["services"])
         self.assertSetEqual(services, {
             "apm-server", "elasticsearch", "kibana",
@@ -1062,7 +1173,9 @@ class LocalTest(unittest.TestCase):
             "opbeans-python",
             "opbeans-ruby",
             "opbeans-rum",
-            "postgres", "redis",
+            "postgres",
+            "redis",
+            "wait-service",
         })
 
     @mock.patch(cli.__name__ + ".load_images")
@@ -1073,7 +1186,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertIn("redis", services)
         self.assertIn("postgres", services)
@@ -1088,7 +1201,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertIn("redis", services)
         self.assertIn("postgres", services)
@@ -1103,7 +1216,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertIn("redis", services)
         self.assertIn("postgres", services)
@@ -1119,7 +1232,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertIn("opbeans-dotnet01", services)
         self.assertIn("opbeans-node01", services)
@@ -1136,15 +1249,15 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
-        depends_on = set(got["services"]["opbeans-node"]["depends_on"].keys())
+        got = yaml.safe_load(docker_compose_yml)
+        depends_on = set(got["services"]["opbeans-node"]["depends_on"])
         self.assertSetEqual({"postgres", "redis"}, depends_on)
-        depends_on = set(got["services"]["opbeans-python"]["depends_on"].keys())
+        depends_on = set(got["services"]["opbeans-python"]["depends_on"])
         self.assertSetEqual({"elasticsearch", "postgres", "redis"}, depends_on)
-        depends_on = set(got["services"]["opbeans-ruby"]["depends_on"].keys())
+        depends_on = set(got["services"]["opbeans-ruby"]["depends_on"])
         self.assertSetEqual({"elasticsearch", "postgres", "redis"}, depends_on)
         for name, service in got["services"].items():
-            self.assertNotIn("apm-server", service.get("depends_on", {}), "{} depends on apm-server".format(name))
+            self.assertNotIn("apm-server", service.get("depends_on", []), "{} depends on apm-server".format(name))
 
     @mock.patch(cli.__name__ + ".load_images")
     def test_start_unsupported_version_pre_6_3(self, _ignore_load_images):
@@ -1155,7 +1268,7 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/elasticsearch/elasticsearch-platinum:{}".format(version),
@@ -1172,13 +1285,223 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/elasticsearch/elasticsearch:{}-SNAPSHOT".format(version),
             services["elasticsearch"]["image"]
         )
         self.assertEqual("docker.elastic.co/kibana/kibana:{}-SNAPSHOT".format(version), services["kibana"]["image"])
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_with_dyno(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains a configuration block for the Dyno container
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        got = yaml.safe_load(docker_compose_yml)
+        self.assertIn('dyno', got['services'])
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_with_dyno_defaults(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains the defaults for Dyno
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        received = yaml.safe_load(docker_compose_yml)
+        got = received['services']['dyno']
+        want = {
+                'build':
+                {
+                    'args': [],
+                    'context': 'docker/dyno',
+                    'dockerfile': 'Dockerfile'
+                },
+                'container_name': 'dyno',
+                'environment': {'TOXI_HOST': 'toxi', 'TOXI_PORT': '8474'},
+                'healthcheck': {
+                    'interval': '10s',
+                    'retries': 12,
+                    'test': [
+                        'CMD',
+                        'wget',
+                        '-T',
+                        '3',
+                        '-q',
+                        '--server-response',
+                        '-O',
+                        '/dev/null',
+                        'http://localhost:8000/'
+                        ]
+                    },
+                'ports': ['9000:8000'],
+                'volumes': ['/var/run/docker.sock:/var/run/docker.sock']}
+        self.assertDictEqual(got, want)
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_with_toxi(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains a configuration block for the Toxi container
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        got = yaml.safe_load(docker_compose_yml)
+        self.assertIn('toxi', got['services'])
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_toxi_docker_defaults(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains a configuration block for the Toxi container
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        received = yaml.safe_load(docker_compose_yml)
+        got = received['services']['toxi']
+        want = {
+                'command': [
+                    '-host=0.0.0.0',
+                    '-config=/toxi/toxi.cfg'
+                    ],
+                'container_name': 'localtesting_8.0_toxi',
+                'healthcheck': {
+                    'interval': '10s',
+                    'retries': 12,
+                    'test': [
+                        'CMD',
+                        'wget',
+                        '-T',
+                        '3',
+                        '-q',
+                        '--server-response',
+                        '-O',
+                        '/dev/null',
+                        'http://localhost:8474/proxies'
+                        ]
+                    },
+                'image': 'shopify/toxiproxy',
+                'logging': {
+                    'driver': 'json-file',
+                    'options': {
+                        'max-file': '5',
+                        'max-size': '2m'
+                        }
+                    },
+                'ports': [
+                    '8474:8474',
+                    '3004:3004',
+                    '3003:3003',
+                    '3002:3002',
+                    '3000:3000',
+                    '8000:8000',
+                    '3001:3001'
+                    ],
+                'restart': 'on-failure',
+                'volumes': [
+                    './docker/toxi/toxi.cfg:/toxi/toxi.cfg'
+                    ]
+                }
+        self.assertDictEqual(got, want)
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_dyno_implies_statsd(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains a configuration block for the StatsD container
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        got = yaml.safe_load(docker_compose_yml)
+        self.assertIn('stats-d', got['services'])
+
+    @mock.patch(cli.__name__ + ".load_images")
+    @mock.patch(cli.__name__ + ".open")
+    def test_start_dyno_generates_statsd_config(self, _ignore_load_images, _ignore_open):
+        """
+        GIVEN a mocked CLI which does not actually load images
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated Docker Compose file contains the correct configuration for StatsD
+        """
+        docker_compose_yml = stringIO()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+            setup.set_docker_compose_path(docker_compose_yml)
+            setup()
+        docker_compose_yml.seek(0)
+        got = yaml.safe_load(docker_compose_yml)
+        want = {
+                'build': {
+                    'args': [],
+                    'context': 'docker/statsd',
+                    'dockerfile': 'Dockerfile'
+                    },
+                'container_name': 'localtesting_8.0_stats-d',
+                'healthcheck': {
+                    'interval': '10s',
+                    'test': ['CMD', 'pidof', 'node']
+                    },
+                'logging': {
+                    'driver': 'json-file',
+                    'options': {'max-file': '5', 'max-size': '2m'}
+                    },
+                'ports': [
+                    '8125:8125/udp',
+                    '8126:8126',
+                    '8127:8127'
+                    ]
+                }
+
+    @mock.patch(cli.__name__ + ".load_images")
+    def test_start_with_toxi_cfg(self, _ignore_load_images):
+        """
+        GIVEN a mocked CLI which does not actually write a config
+        WHEN the CLI is called with the --dyno flag
+        THEN the generated toxi.cfg would contain the correct defaults
+        """
+        docker_compose_yml = stringIO()
+        toxi_open = mock.mock_open()
+        with mock.patch.dict(LocalSetup.SUPPORTED_VERSIONS, {'master': '8.0.0'}):
+            with mock.patch('scripts.modules.cli.open', toxi_open):
+                setup = LocalSetup(argv=self.common_setup_args + ["master", "--all", "--dyno"])
+                setup.set_docker_compose_path(docker_compose_yml)
+                setup()
+        want = '[\n    {\n        "enabled": true,\n        "listen": "[::]:3004",\n        "name": "opbeans-dotnet",\n        "upstream": "opbeans-dotnet:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:3003",\n        "name": "opbeans-go",\n        "upstream": "opbeans-go:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:3002",\n        "name": "opbeans-java",\n        "upstream": "opbeans-java:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:3000",\n        "name": "opbeans-node",\n        "upstream": "opbeans-node:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:8000",\n        "name": "opbeans-python",\n        "upstream": "opbeans-python:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:3001",\n        "name": "opbeans-ruby",\n        "upstream": "opbeans-ruby:3000"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:5432",\n        "name": "postgres",\n        "upstream": "postgres:5432"\n    },\n    {\n        "enabled": true,\n        "listen": "[::]:6379",\n        "name": "redis",\n        "upstream": "redis:6379"\n    }\n]'
+        toxi_open().write.assert_called_once_with(want)
 
     @mock.patch(service.__name__ + ".resolve_bc")
     @mock.patch(cli.__name__ + ".load_images")
@@ -1237,7 +1560,7 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/elasticsearch/elasticsearch:{}".format(version),
@@ -1295,7 +1618,7 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/elasticsearch/elasticsearch-oss:{}".format(version),
@@ -1353,7 +1676,7 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/apm/apm-server:{}".format(apm_server_version),
@@ -1407,7 +1730,7 @@ class LocalTest(unittest.TestCase):
         setup.set_docker_compose_path(docker_compose_yml)
         setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = got["services"]
         self.assertEqual(
             "docker.elastic.co/elasticsearch/elasticsearch-ubi8:{}".format(version),
@@ -1470,7 +1793,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = set(got["services"])
         self.assertIn("apm-server", services)
         self.assertIn("opbeans-python", services)
@@ -1513,7 +1836,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = set(got["services"])
         self.assertIn("elasticsearch", services)
 
@@ -1541,7 +1864,7 @@ class LocalTest(unittest.TestCase):
             setup.set_docker_compose_path(docker_compose_yml)
             setup()
         docker_compose_yml.seek(0)
-        got = yaml.load(docker_compose_yml)
+        got = yaml.safe_load(docker_compose_yml)
         services = set(got["services"])
         self.assertIn("kibana", services)
 

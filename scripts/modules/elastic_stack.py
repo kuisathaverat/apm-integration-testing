@@ -6,8 +6,8 @@ import argparse
 import json
 import os
 
-from .helpers import curl_healthcheck, try_to_set_slowlog
-from .service import StackService, Service
+from .helpers import curl_healthcheck, try_to_set_slowlog, urlparse
+from .service import StackService, Service, DEFAULT_APM_SERVER_URL
 from distutils.dir_util import copy_tree
 from shutil import rmtree
 
@@ -25,8 +25,41 @@ class ApmServer(StackService, Service):
 
     def __init__(self, **options):
         super(ApmServer, self).__init__(**options)
-        default_apm_server_creds = {"username": "apm_server_user", "password": "changeme"}
 
+        default_apm_server_creds = {"username": "apm_server_user", "password": "changeme"}
+        self.managed = False
+
+        # run apm-server managed by elastic-agent
+        if self.options.get("apm_server_managed"):
+            if not self.at_least_version("7.11"):
+                raise Exception("APM Server managed by Elastic Agent is only available in 7.11+")
+
+            self.managed = True
+            self.apm_server_command_args = []
+
+            kibana_url = options.get("elastic_agent_kibana_url")
+            if not kibana_url:
+                kibana_scheme = "https" if self.options.get("kibana_enable_tls", False) else "http"
+                kibana_url = kibana_scheme + "://admin:changeme@" + self.DEFAULT_KIBANA_HOST
+            self.depends_on = {"kibana": {"condition": "service_healthy"}}
+
+            xpack_registry_url = "https://epr-snapshot.elastic.co"
+            if options.get("enable_package_registry"):
+                xpack_registry_url = "http://package-registry:{}".format(PackageRegistry.SERVICE_PORT)
+                self.depends_on["package-registry"] = {"condition": "service_healthy"}
+            elif options.get("release") or options.get("apm_server_release"):
+                xpack_registry_url = "https://epr.elastic.co"
+            self.managed_environment = {"KIBANA_HOST": kibana_url,
+                                        "XPACK_FLEET_REGISTRYURL": xpack_registry_url,
+                                        "APM_SERVER_SECRET_TOKEN": self.options.get("apm_server_secret_token", "")}
+
+            # Not yet supported when run under elastic-agent:
+            # - apm-server config options
+            # - teeproxy and haproxy not yet supported
+            self.apm_server_count = 1
+            return
+
+        # run apm-server standalone
         v1_rate_limit = ("apm-server.frontend.rate_limit", "100000")
         if self.at_least_version("6.5"):
             rum_config = [
@@ -420,6 +453,13 @@ class ApmServer(StackService, Service):
             default=False,
             help="apm-server enable all the debugging output.",
         )
+        parser.add_argument(
+            '--apm-server-managed',
+            action="store_true",
+            dest="apm_server_managed",
+            default=False,
+            help="run apm-server managed by elastic-agent",
+        )
 
     def build_candidate_manifest(self):
         version = self.version
@@ -446,6 +486,9 @@ class ApmServer(StackService, Service):
             raise
 
     def _content(self):
+        if self.managed:
+            return dict()
+
         command_args = []
         for param, value in self.apm_server_command_args:
             command_args.extend(["-E", param + "=" + value])
@@ -528,10 +571,16 @@ class ApmServer(StackService, Service):
         return True
 
     def render(self):
-        """hack up render to support multiple apm servers behind a load balancer"""
+        """hack up render to support multiple apm servers behind a load balancer and apm-server under elastic agent"""
         ren = super(ApmServer, self).render()
         if self.apm_server_count == 1:
-            return ren
+            if self.managed:
+                # run a managed server
+                ren = self.render_managed()
+                return ren
+            else:
+                # return starndard apm-server
+                return ren
 
         # save a single server for use as backend template
         single = ren[self.name()]
@@ -554,6 +603,16 @@ class ApmServer(StackService, Service):
             ren.update({"-".join([self.name(), str(i)]): backend})
 
         return ren
+
+    def render_managed(self):
+        content = dict(
+            build={"context": "docker/apm-server/managed"},
+            container_name=self.default_container_name() + "-managed",
+            depends_on=self.depends_on,
+            environment=self.managed_environment,
+            healthcheck=curl_healthcheck(self.SERVICE_PORT, host="elastic-agent", path="/", interval="10s", retries=12)
+        )
+        return {self.name(): content}
 
     def render_proxy(self):
         condition = {"condition": "service_healthy"}
@@ -586,6 +645,136 @@ class ApmServer(StackService, Service):
             ],
         )
         return {self.name(): content}
+
+
+class PackageRegistry(StackService, Service):
+
+    SERVICE_PORT = "8080"
+
+    docker_path = "package-registry"
+    docker_name = "distribution"
+
+    def __init__(self, **options):
+        super(PackageRegistry, self).__init__(**options)
+        if not self.at_least_version("7.10"):
+            raise Exception("Package registry only supported for 7.10+")
+        self.distribution = options.get("package_registry_distribution", "snapshot")
+        self.apm_package = options.get("package_registry_apm_path")
+        self.environment = {}
+
+    def _content(self):
+        content = dict(
+            image="/".join((self.docker_registry, self.docker_path, self.docker_name)) + ":" + self.distribution,
+            environment=self.environment,
+            healthcheck=curl_healthcheck(self.SERVICE_PORT, path="/", interval="5s", retries=10),
+            ports=[self.publish_port(self.SERVICE_PORT)]
+        )
+        if self.apm_package:
+            content["volumes"] = [self.apm_package + ":/packages/" + self.distribution + "/apm"]
+        return content
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super(PackageRegistry, cls).add_arguments(parser)
+        parser.add_argument(
+            "--package-registry-distribution",
+            default="snapshot",
+            choices=['snapshot', 'staging', 'production'],
+            help="Package registry distribution"
+        )
+        parser.add_argument(
+            "--package-registry-apm-path",
+            help="Folder of a local APM package to add to the registry"
+        )
+
+
+class ElasticAgent(StackService, Service):
+    docker_path = "beats"
+
+    def __init__(self, **options):
+        super(ElasticAgent, self).__init__(**options)
+        if not self.at_least_version("7.8"):
+            raise Exception("Elastic Agent is only available in 7.8+")
+
+        # build deps
+        self.depends_on = {"kibana": {"condition": "service_healthy"}} if options.get("enable_kibana", True) else {}
+
+        # build environment
+        # Environment variables consumed by the Elastic Agent entrypoint
+        # https://github.com/elastic/beats/blob/4f4a5536b72f4a25962d56262f31e3b8533b252e/dev-tools/packaging/templates/docker/docker-entrypoint.elastic-agent.tmpl
+        # FLEET_ENROLLMENT_TOKEN - existing enrollment token to be used for enroll
+        # FLEET_ENROLL - if set to 1 enroll will be performed
+        # FLEET_ENROLL_INSECURE - if set to 1, agent will enroll with fleet using --insecure flag
+        # FLEET_SETUP - if  set to 1 fleet setup will be performed
+        # FLEET_TOKEN_NAME - token name for a token to be created
+        # KIBANA_HOST - actual kibana host [http://localhost:5601]
+        # KIBANA_PASSWORD - password for accessing kibana API [changeme]
+        # KIBANA_USERNAME - username for accessing kibana API [elastic]
+        kibana_url = options.get("elastic_agent_kibana_url")
+        if not kibana_url:
+            kibana_scheme = "https" if self.options.get("kibana_enable_tls", False) else "http"
+            # TODO(gr): add default elastic-agent user
+            kibana_url = kibana_scheme + "://admin:changeme@" + self.DEFAULT_KIBANA_HOST
+
+        kibana_parsed_url = urlparse(kibana_url)
+        self.environment = {
+            "FLEET_ENROLL": "1",
+            "FLEET_SETUP": "1",
+            "KIBANA_HOST": kibana_url,
+        }
+        if kibana_parsed_url.password:
+            self.environment["KIBANA_PASSWORD"] = kibana_parsed_url.password
+        if kibana_parsed_url.username:
+            self.environment["KIBANA_USERNAME"] = kibana_parsed_url.username
+        if not kibana_url.startswith("https://"):
+            self.environment["FLEET_ENROLL_INSECURE"] = 1
+
+        # set ports for defined integrations
+        self.ports = []
+        if self.options.get("enable_apm_server") and self.options.get("apm_server_managed"):
+            self.ports.append(self.publish_port(self.options.get(
+                "apm_server_port", ApmServer.SERVICE_PORT), ApmServer.SERVICE_PORT))
+
+    def _content(self):
+        return dict(
+            depends_on=self.depends_on,
+            environment=self.environment,
+            healthcheck={
+                "test": ["CMD", "/bin/true"],
+            },
+            ports=self.ports,
+            volumes=[
+                "/var/run/docker.sock:/var/run/docker.sock",
+            ]
+        )
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super(ElasticAgent, cls).add_arguments(parser)
+        parser.add_argument(
+            "--elastic-agent-kibana-url",
+            default="http://admin:changeme@" + cls.DEFAULT_KIBANA_HOST,
+            help="Elastic Agent's Kibana URL, including username:password"
+        )
+
+    def build_candidate_manifest(self):
+        version = self.version
+        image = self.docker_name
+        if self.oss:
+            image += "-oss"
+        if self.ubi8:
+            image += "-ubi8"
+
+        key = "{image}-{version}-docker-image-linux-amd64.tar.gz".format(
+            image=image,
+            version=version,
+        )
+        try:
+            return self.bc["projects"]["beats"]["packages"][key]
+        except KeyError:
+            # help debug manifest issues
+            print(json.dumps(self.bc))
+            raise
 
 
 class Elasticsearch(StackService, Service):
@@ -762,8 +951,81 @@ class Elasticsearch(StackService, Service):
         return True
 
 
+class EnterpriseSearch(StackService, Service):
+    SERVICE_PORT = 3002
+    EXTERNAL_PORT = 3005
+
+    @classmethod
+    def add_arguments(cls, parser):
+        parser.add_argument(
+            "--{}-elasticsearch-url".format(cls.name()),
+            action="append",
+            dest="{}_elasticsearch_urls".format(cls.name()),
+            help="{} elasticsearch output url(s).".format(cls.name())
+        )
+        parser.add_argument(
+            "--{}-elasticsearch-username".format(cls.name()),
+            help="{} elasticsearch output username.".format(cls.name()),
+        )
+        parser.add_argument(
+            "--{}-elasticsearch-password".format(cls.name()),
+            help="{} elasticsearch output password.".format(cls.name()),
+        )
+        parser.add_argument(
+            "--{}-password".format(cls.name()),
+            default="changeme",
+            help="{} user password.".format(cls.name()),
+        )
+        parser.add_argument(
+            "--{}-port".format(cls.name()),
+            default=cls.EXTERNAL_PORT,
+            help="Enterprise search exposed port.",
+        )
+
+    def __init__(self, **options):
+        super(EnterpriseSearch, self).__init__(**options)
+        self.depends_on = {"elasticsearch": {"condition": "service_healthy"}} if options.get(
+            "enable_elasticsearch", True) else {}
+
+        self.environment = {
+            "allow_es_settings_modification": "true",
+            "ent_search.external_url": "http://localhost:{}".format(self.port),
+            "secret_management.encryption_keys": '[4a2cd3f81d39bf28738c10db0ca782095ffac07279561809eecc722e0c20eb09]',
+            "ELASTIC_APM_ACTIVE": "true",
+            "ELASTIC_APM_SERVER_URL": options.get("apm_server_url", DEFAULT_APM_SERVER_URL),
+            "ENT_SEARCH_DEFAULT_PASSWORD": options.get("enterprise_search_password", "changeme")
+        }
+
+        self.es_tls = options.get("elasticsearch_enable_tls", False)
+        self.kibana_tls = options.get("kibana_enable_tls", False)
+        es_urls = self.options.get("enterprise_search_elasticsearch_urls") or \
+            [self.default_elasticsearch_hosts(self.es_tls)]
+        self.environment["elasticsearch.host"] = es_urls[0]
+
+        default_creds = {"username": "admin", "password": "changeme"}
+        for cfg in ("username", "password"):
+            es_opt = "{}_elasticsearch_{}".format(self.name(), cfg)
+            if options.get(es_opt):
+                self.environment.update({"elasticsearch.{}".format(cfg): options[es_opt]})
+            elif options.get("xpack_secure"):
+                self.environment.update({"elasticsearch.{}".format(cfg): default_creds.get(cfg)})
+
+    def _content(self):
+        return dict(
+            depends_on=self.depends_on,
+            environment=self.environment,
+            healthcheck=curl_healthcheck(
+                self.SERVICE_PORT, "enterprise-search", path="/", retries=20),
+            labels=None,
+            ports=[self.publish_port(self.port, self.SERVICE_PORT)],
+        )
+
+
 class Kibana(StackService, Service):
-    default_environment = {"SERVER_NAME": "kibana.example.org"}
+    default_environment = {
+        "SERVER_HOST": "0.0.0.0",
+        "SERVER_NAME": "kibana.example.org",
+    }
 
     SERVICE_PORT = 5601
 
@@ -780,6 +1042,9 @@ class Kibana(StackService, Service):
         default_es_hosts = self.default_elasticsearch_hosts(tls=self.es_tls)
         urls = self.options.get("kibana_elasticsearch_urls") or [default_es_hosts]
         self.environment["ELASTICSEARCH_HOSTS"] = ",".join(urls)
+        use_local_package_registry = options.get("enable_package_registry")
+        self.depends_on = {"elasticsearch": {"condition": "service_healthy"}} if self.options.get(
+            "enable_elasticsearch", True) else {}
 
         if not self.oss:
             self.environment["XPACK_MONITORING_ENABLED"] = "true"
@@ -790,6 +1055,10 @@ class Kibana(StackService, Service):
             if self.at_least_version("7.7"):
                 self.environment["XPACK_SECURITY_ENCRYPTIONKEY"] = "fhjskloppd678ehkdfdlliverpoolfcr"
                 self.environment["XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY"] = "fhjskloppd678ehkdfdlliverpoolfcr"
+            if self.at_least_version("7.8"):
+                self.environment["XPACK_FLEET_AGENTS_ELASTICSEARCH_HOST"] = urls[0]
+                self.environment["XPACK_FLEET_AGENTS_KIBANA_HOST"] = "{}://kibana:{}".format(
+                    "https" if self.kibana_tls else "http", self.SERVICE_PORT)
             if options.get("xpack_secure"):
                 self.environment["ELASTICSEARCH_PASSWORD"] = "changeme"
                 self.environment["ELASTICSEARCH_USERNAME"] = "kibana_system_user"
@@ -815,6 +1084,10 @@ class Kibana(StackService, Service):
                     self.environment["XPACK_FLEET_AGENTS_TLSCHECKDISABLED"] = "true"
                 elif self.at_least_version("7.9"):
                     self.environment["XPACK_INGESTMANAGER_FLEET_TLSCHECKDISABLED"] = "true"
+            if use_local_package_registry:
+                self.depends_on["package-registry"] = {"condition": "service_healthy"}
+                self.environment["XPACK_FLEET_REGISTRYURL"] = "http://package-registry:" + \
+                    PackageRegistry.SERVICE_PORT
 
         source = self.options.get("kibana_from_sources")
         if source:
@@ -826,6 +1099,7 @@ class Kibana(StackService, Service):
 
     @classmethod
     def add_arguments(cls, parser):
+        super(Kibana, cls).add_arguments(parser)
         parser.add_argument(
             "--kibana-elasticsearch-url",
             action="append",
@@ -874,8 +1148,7 @@ class Kibana(StackService, Service):
         content = dict(
             healthcheck=curl_healthcheck(
                 self.SERVICE_PORT, "kibana", path="/api/status", retries=20, https=self.kibana_tls),
-            depends_on={"elasticsearch": {"condition": "service_healthy"}} if self.options.get(
-                "enable_elasticsearch", True) else {},
+            depends_on=self.depends_on,
             environment=self.environment,
             ports=[self.publish_port(self.port, self.SERVICE_PORT)],
         )

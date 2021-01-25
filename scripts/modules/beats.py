@@ -1,6 +1,7 @@
 import json
 import os
 
+from .helpers import curl_healthcheck
 from .service import StackService, Service
 
 
@@ -78,7 +79,7 @@ class BeatMixin(object):
                 command_args.extend([
                     ("output.kafka.enabled", "true"),
                     ("output.kafka.hosts", "[\"kafka:9092\"]"),
-                    ("output.kafka.topics", "[{default: '{}', topic: '{}'}]".format(self.name(), self.name())),
+                    ("output.kafka.topics", "[{default: '%s', topic: '%s'}]" % (self.name(), self.name())),
                 ])
 
         if self.kibana_tls:
@@ -147,6 +148,7 @@ class Filebeat(BeatMixin, StackService, Service):
             environment=self.environment,
             labels=None,
             user="root",
+            healthcheck=curl_healthcheck("5066", "localhost", path="/?pretty"),
             volumes=[
                 self.filebeat_config_path + ":/usr/share/filebeat/filebeat.yml",
                 "/var/lib/docker/containers:/var/lib/docker/containers",
@@ -173,6 +175,7 @@ class Heartbeat(BeatMixin, StackService, Service):
             environment=self.environment,
             labels=None,
             user="root",
+            healthcheck=curl_healthcheck("5066", "localhost", path="/?pretty"),
             volumes=[
                 self.heartbeat_config_path + ":/usr/share/heartbeat/heartbeat.yml",
                 "/var/lib/docker/containers:/var/lib/docker/containers",
@@ -204,6 +207,7 @@ class Metricbeat(BeatMixin, StackService, Service):
             environment=self.environment,
             labels=None,
             user="root",
+            healthcheck=curl_healthcheck("5066", "localhost", path="/?pretty"),
             volumes=[
                 ("./docker/metricbeat/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml"
                  if self.at_least_version("7.2")
@@ -220,7 +224,25 @@ class Packetbeat(BeatMixin, StackService, Service):
     DEFAULT_COMMAND = ["packetbeat", "-e", "--strict.perms=false", "-E", "packetbeat.interfaces.device=eth0"]
     docker_path = "beats"
 
+    @classmethod
+    def add_arguments(cls, parser):
+        super(Packetbeat, cls).add_arguments(parser)
+        parser.add_argument(
+            "--packetbeat-kibana-username",
+            help="packetbeat kibana username (default admin).",
+            dest="packetbeat_kibana_username"
+        )
+        parser.add_argument(
+            "--packetbeat-kibana-password",
+            help="packetbeat kibana password (default changeme).",
+            dest="packetbeat_kibana_password"
+        )
+
     def _content(self):
+        if self.options.get("packetbeat_kibana_username"):
+            self.environment['KIBANA_USERNAME'] = self.options.get("packetbeat_kibana_username")
+        if self.options.get("packetbeat_kibana_password"):
+            self.environment['KIBANA_PASSWORD'] = self.options.get("packetbeat_kibana_password")
         return dict(
             command=self.command,
             depends_on=self.depends_on,
@@ -230,6 +252,7 @@ class Packetbeat(BeatMixin, StackService, Service):
             privileged="true",
             cap_add=["NET_ADMIN", "NET_RAW"],
             network_mode="service:apm-server",
+            healthcheck=curl_healthcheck("5066", "localhost", path="/?pretty"),
             volumes=[
                 ("./docker/packetbeat/packetbeat.yml:/usr/share/packetbeat/packetbeat.yml"
                  if self.at_least_version("7.2")
